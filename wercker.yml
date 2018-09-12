@@ -8,6 +8,25 @@ box: golang
 # Read more about pipelines on our dev center
 # https://devcenter.wercker.com/development/pipelines/
 
+dev:
+        steps:
+                - setup-go-workspace:
+                        package-dir:github.com/cloudnativego/hello
+                - script:
+                        name:env
+                        code:env
+                - script:
+                        name:env
+                        code:|
+                          cd $WERCKER_SOURCE_DIR
+                          go verison
+                          go get -u github.com/Masterminds/glide
+                          export PATH=$WERCKER_SOURCE_DIR/bin:$PATH
+                          glide  install
+                          
+                - internal/watch:
+                        code:env
+                        reload:true
 # You can also use services such as databases. Read more on our dev center:
 # https://devcenter.wercker.com/administration/services/
 # services:
@@ -25,22 +44,56 @@ build:
     # Sets the go workspace and places you package
     # at the right place in the workspace tree
     - setup-go-workspace
+        package-dir:github.com/cloudnativego/hello
+
+    - script:
+        name:env
+        code:env
 
     # Gets the dependencies
     - script:
         name: go get
         code: |
-          go get
+          cd $WERCKER_SOURCE_DIR
+          go version
+          go get -u github.com/Masterminds/glide
+          export PATH=$WERCKER_SOURCE_DIR/bin:$PATH
+          glide install
 
     # Build the project
     - script:
         name: go build
         code: |
-          go build ./...
+                #go build ./...
+          go build
 
     # Test the project
     - script:
         name: go test
         code: |
-          go test ./...
+                #go test ./...
+          go test -v $(glide novendor)
+
+    - script:
+        name: copy files to wercker output
+        code: |
+          cp -R ./ ${WERCKER_OUTPUT_DIR}
+deploy:
+ steps:
+         - internal/docker-push:
+             username: $DOCKER_USERNAME
+             password: $DOCKER_PASSWORD
+             cmd: /pipeline/source/hello
+             port: "8080"
+             tag: latest
+             repository:cloudnativego/book-hello
+             registry: https://registry.hub.docker.com
+          - cng/cf-deploy:
+                  api: $API
+                  user: $USER
+                  password: $PASSWORD
+                  org: $ORG
+                  space: $SPACE
+                  appname: wercker-step-hello
+                  docker_image:cloudnativego/book-hello
 
